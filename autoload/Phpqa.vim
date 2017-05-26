@@ -60,7 +60,7 @@ function s:RemoveCodeCoverageSigns()
 endfunction
 
 " Combine error lists for codesniffer and messdetector
-function s:CombineLists(phpcs_list,phpmd_list)
+function s:CombineLists(phpcs_list,phpmd_list,phan_list)
 
     if 0 != len(a:phpcs_list)
         let k = 0
@@ -76,7 +76,14 @@ function s:CombineLists(phpcs_list,phpmd_list)
             let k = k+1
         endfor
     endif
-    return a:phpcs_list + a:phpmd_list
+    if 0 != len(a:phan_list)
+        let k = 0
+        for val in a:phan_list
+            let a:phan_list[k] = g:phpqa_phan_type." ".a:phan_list[k]." ".g:phpqa_phan_append
+            let k = k+1
+        endfor
+    endif
+    return a:phpcs_list + a:phpmd_list + a:phan_list
 endf
 "1}}}
 "=============================================================================
@@ -159,26 +166,65 @@ function! Phpqa#PhpMessDetector()
     return l:phpmd_list
 endf
 
+" Run Phan
+"
+" The user is required to specify a ruleset XML file if they haven't already.
+function! Phpqa#Phan()
+    if @% == ""
+        echohl Error | echo "Invalid buffer (are you in the error window?)" |echohl None
+        return []
+    endif
+    " Run messdetector if the command hasn't been unset
+    if 0 != len(g:phpqa_phan_cmd)
+        let file_tmp = ""
+        while 0 == len(g:phpqa_messdetector_ruleset)
+            let file_tmp = input("Please specify a mess detector ruleset file, or built in rule: ",file_tmp)
+            let g:phpqa_messdetector_ruleset = file_tmp
+        endwhile
+        let l:phan_output=system(g:phpqa_phan_cmd." -k ".g:phpqa_phan_config.' '.@%)
+        let l:phan_list=split(l:phan_output, "\n")
+    else
+        let l:phan_list = []
+        echohl Error | echo "Phan binary set to empty, not running mess detector" | echohl None
+    endif
+    return l:phan_list
+endf
+
 " Run Code Sniffer and Mess Detector.
-function! Phpqa#PhpQaTools(runcs,runmd)
+function! Phpqa#PhpQaTools(...)
+    let runcs = exists('a:1') ? a:1 : 0
+    let runmd = exists('a:2') ? a:2 : 0
+    let runphan = exists('a:3') ? a:3 : 0
+    let cslist = exists('a:4') ? a:4 : []
+    let mdlist = exists('a:5') ? a:5 : []
+    let anlist = exists('a:6') ? a:6 : []
     let l:bufNo = bufnr('%')
     call s:RemoveSigns()
 
-    if 1 == a:runcs
+    let l:phpcs_list = []
+    if 1 == runcs
         let l:phpcs_list=Phpqa#PhpCodeSniffer()
-    else
-        let l:phpcs_list = []
+    elseif len(cslist)>0
+        let l:phpcs_list = extend(l:phpcs_list, cslist)
     endif
 
-    if 1 == a:runmd
+    let l:phpmd_list = []
+    if 1 == runmd
         let l:phpmd_list = Phpqa#PhpMessDetector()
-    else
-        let l:phpmd_list = []
+    elseif len(mdlist)>0
+        let l:phpmd_list = extend(l:phpmd_list, mdlist)
     endif
 
-    let error_list=s:CombineLists(l:phpcs_list,l:phpmd_list)
+    let l:phan_list = []
+    if 1 == runphan
+        let l:phan_list = Phpqa#Phan()
+    elseif len(anlist)>0
+        let l:phan_list = extend(l:phan_list, anlist)
+    endif
+
+    let error_list=s:CombineLists(l:phpcs_list,l:phpmd_list,l:phan_list)
     if 0 != len(error_list)
-        set errorformat=%t\ %f:%l:%c:\ %m,%t\ %f:%l\	%m
+        set errorformat=%t\ %f:%l:%c:\ %m,%t\ %f:%l\	%m,%t\ %f:%l\ Phan%m
         lgete error_list
         call s:AddSigns(l:bufNo)
         if g:phpqa_open_loc

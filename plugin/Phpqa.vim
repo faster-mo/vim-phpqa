@@ -56,9 +56,19 @@ if !exists("g:phpqa_messdetector_cmd")
     let g:phpqa_messdetector_cmd='phpmd'
 endif
 
+" Phan binary
+if !exists("g:phpqa_phan_cmd")
+    let g:phpqa_phan_cmd='phan'
+endif
+
+" Rule set built-in or XML file for mess detector, comma separated
+if !exists("g:phpqa_phan_config")
+    let g:phpqa_phan_config = ".\.phan\config.php"
+endif
+
 " Rule set built-in or XML file for mess detector, comma separated
 if !exists("g:phpqa_messdetector_ruleset")
-    let g:phpqa_messdetector_ruleset="codesize,unusedcode,naming"
+    let g:phpqa_messdetector_ruleset = "codesize,unusedcode,naming"
 endif
 
 " Clover code coverage file
@@ -93,6 +103,11 @@ if !exists("g:phpqa_messdetector_autorun")
     let g:phpqa_messdetector_autorun = 1
 endif
 
+" Whether to automatically run phan when saving a file
+if !exists("g:phpqa_phan_autorun")
+    let g:phpqa_phan_autorun = 1
+endif
+
 " Whether qa tools should run on buffer write
 if !exists("g:phpqa_run_on_write")
     let g:phpqa_run_on_write = 1
@@ -111,7 +126,7 @@ function! PhpqaRunAll()
         " Check syntax valid before running others
         let retval=Phpqa#PhpLint()
         if 0 == retval && 1 == g:phpqa_run_on_write
-            call Phpqa#PhpQaTools(g:phpqa_codesniffer_autorun,g:phpqa_messdetector_autorun)
+            call Phpqa#PhpQaTools(g:phpqa_codesniffer_autorun,g:phpqa_messdetector_autorun,g:phpqa_phan_autorun)
         endif
     endif
 endf
@@ -140,8 +155,9 @@ endif
 
 " Allow each command to be called individually
 command Php call Phpqa#PhpLint()
-command Phpcs call Phpqa#PhpQaTools(1,0)
+command Phpcs call Phpqa#PhpQaTools(1)
 command Phpmd call Phpqa#PhpQaTools(0,1)
+command Phan call Phpqa#PhpQaTools(0,0,1)
 command Phpcc call Phpqa#PhpCodeCoverage()
 
 
@@ -161,6 +177,11 @@ let g:phpqa_messdetector_append = "(PHPMD)"
 let g:phpqa_messdetector_type = "M"
 sign define MessDetectorError linehl=WarningMsg text=M>  texthl=WarningMsg
 
+" phan sign config
+let g:phpqa_phan_append = "(PHAN)"
+let g:phpqa_phan_type = "A"
+sign define PhanError linehl=WarningMsg text=A>  texthl=WarningMsg
+
 " PHP error sign config
 let g:phpqa_php_append = "(PHP)"
 let g:phpqa_php_type = "P"
@@ -173,4 +194,4 @@ sign define GenericError linehl=Error text=U> texthl=Error
 sign define CodeCoverageCovered text=C>  texthl=Cursor
 sign define CodeCoverageNotCovered text=C>  texthl=Error
 
-let g:phpqa_sign_type_map = {'S':"CodeSnifferError",'M':"MessDetectorError",'P':"PhpError"}
+let g:phpqa_sign_type_map = {'S':"CodeSnifferError",'M':"MessDetectorError",'A':"PhanError",'P':"PhpError"}
